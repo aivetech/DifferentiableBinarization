@@ -1,5 +1,6 @@
-from keras_resnet.models import ResNet50
-from keras import layers, models
+#from keras_resnet.models import ResNet50
+from tensorflow.keras.applications import ResNet50, ResNet50V2
+from tensorflow.keras import layers, models
 import tensorflow as tf
 from losses import db_loss
 
@@ -10,7 +11,9 @@ def dbnet(input_size=640, k=50):
     mask_input = layers.Input(shape=(input_size, input_size))
     thresh_input = layers.Input(shape=(input_size, input_size))
     thresh_mask_input = layers.Input(shape=(input_size, input_size))
-    backbone = ResNet50(inputs=image_input, include_top=False, freeze_bn=True)
+    #backbone = ResNet50(inputs=image_input, include_top=False, freeze_bn=True)
+    backbone = ResNet50V2(include_top=False, weights='imagenet', input_shape=(None, None, 3))
+    print(backbone.outputs)
     C2, C3, C4, C5 = backbone.outputs
     in2 = layers.Conv2D(256, (1, 1), padding='same', kernel_initializer='he_normal', name='in2')(C2)
     in3 = layers.Conv2D(256, (1, 1), padding='same', kernel_initializer='he_normal', name='in3')(C3)

@@ -76,7 +76,7 @@ def polygons_from_bitmap(pred, bitmap, dest_width, dest_height, max_candidates=1
     boxes = []
     scores = []
 
-    _, contours, _ = cv2.findContours((bitmap * 255).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours((bitmap * 255).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
     for contour in contours[:max_candidates]:
         epsilon = 0.01 * cv2.arcLength(contour, True)
@@ -109,8 +109,8 @@ if __name__ == '__main__':
     mean = np.array([103.939, 116.779, 123.68])
 
     _, model = dbnet()
-    model.load_weights('/home/adam/workspace/github/xuannianz/carrot/db/checkpoints/2020-01-02/db_48_2.0216_2.5701.h5', by_name=True, skip_mismatch=True)
-    for image_path in glob.glob(osp.join('datasets/total_text/test_images', '*.jpg')):
+    model.load_weights('/home/nduforet/Projects/Notebooks/DifferentiableBinarization/checkpoints/2020-01-29/db_01_19.9080_77.1976.h5', by_name=True, skip_mismatch=True)
+    for image_path in glob.glob(osp.join('datasets/total_text_subsample/test_images', '*.jpg')):
         image = cv2.imread(image_path)
         src_image = image.copy()
         h, w = image.shape[:2]
@@ -120,10 +120,10 @@ if __name__ == '__main__':
         image_input = np.expand_dims(image, axis=0)
         p = model.predict(image_input)[0]
         bitmap = p > 0.3
-        boxes, scores = polygons_from_bitmap(p, bitmap, w, h, box_thresh=0.5)
+        boxes, scores = polygons_from_bitmap(p, bitmap, w, h, box_thresh=0.01)
         for box in boxes:
             cv2.drawContours(src_image, [np.array(box)], -1, (0, 255, 0), 2)
-        cv2.namedWindow('image', cv2.WINDOW_NORMAL)
+        #cv2.namedWindow('image', cv2.WINDOW_NORMAL)
         cv2.imshow('image', src_image)
         cv2.waitKey(0)
         image_fname = osp.split(image_path)[-1]

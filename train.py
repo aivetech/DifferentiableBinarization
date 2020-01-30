@@ -1,8 +1,8 @@
 import datetime
 import os.path as osp
-from keras import callbacks
-from keras import optimizers
-from keras.utils import get_file
+from tensorflow.keras import callbacks
+from tensorflow.keras import optimizers
+from tensorflow.keras.utils import get_file
 import os
 
 from generator import generate
@@ -14,8 +14,8 @@ batch_size = 16
 if not osp.exists(checkpoints_dir):
     os.makedirs(checkpoints_dir)
 
-train_generator = generate('datasets/total_text', batch_size=batch_size, is_training=True)
-val_generator = generate('datasets/total_text', batch_size=batch_size, is_training=False)
+train_generator = generate('datasets/total_text_subsample', batch_size=batch_size, is_training=True)
+val_generator = generate('datasets/total_text_subsample', batch_size=batch_size, is_training=False)
 
 model, prediction_model = dbnet()
 resnet_filename = 'ResNet-50-model.keras.h5'
@@ -30,12 +30,12 @@ checkpoint = callbacks.ModelCheckpoint(
 )
 model.fit_generator(
     generator=train_generator,
-    steps_per_epoch=200,
+    steps_per_epoch=5,
     initial_epoch=0,
-    epochs=100,
+    epochs=1,
     verbose=1,
     callbacks=[checkpoint],
     validation_data=val_generator,
-    validation_steps=19
+    validation_steps=5
 )
 
