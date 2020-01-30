@@ -3,7 +3,7 @@ from tensorflow.keras.applications import ResNet50, ResNet50V2
 from tensorflow.keras import layers, models
 import tensorflow as tf
 from losses import db_loss
-
+import pydot
 
 def dbnet(input_size=640, k=50):
     image_input = layers.Input(shape=(None, None, 3))
@@ -12,9 +12,10 @@ def dbnet(input_size=640, k=50):
     thresh_input = layers.Input(shape=(input_size, input_size))
     thresh_mask_input = layers.Input(shape=(input_size, input_size))
     #backbone = ResNet50(inputs=image_input, include_top=False, freeze_bn=True)
-    backbone = ResNet50V2(include_top=False, weights='imagenet', input_shape=(None, None, 3))
-    print(backbone.outputs)
-    C2, C3, C4, C5 = backbone.outputs
+    backbone = ResNet50(include_top=False, weights='imagenet', input_tensor = image_input)#, input_shape=(None, None, 3))
+    #get output layers
+    output_names = ['conv2_block3_out','conv3_block4_out','conv4_block6_out','conv5_block3_out']
+    [C2, C3, C4, C5] = [x.output for x in backbone.layers if x.name in output_names]
     in2 = layers.Conv2D(256, (1, 1), padding='same', kernel_initializer='he_normal', name='in2')(C2)
     in3 = layers.Conv2D(256, (1, 1), padding='same', kernel_initializer='he_normal', name='in3')(C3)
     in4 = layers.Conv2D(256, (1, 1), padding='same', kernel_initializer='he_normal', name='in4')(C4)
