@@ -76,7 +76,7 @@ def polygons_from_bitmap(pred, bitmap, dest_width, dest_height, max_candidates=1
     boxes = []
     scores = []
 
-    _, contours, _ = cv2.findContours((bitmap * 255).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours((bitmap * 255).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
     for contour in contours[:max_candidates]:
         epsilon = 0.01 * cv2.arcLength(contour, True)
@@ -109,8 +109,9 @@ if __name__ == '__main__':
     mean = np.array([103.939, 116.779, 123.68])
 
     _, model = dbnet()
-    model.load_weights('/home/adam/workspace/github/xuannianz/carrot/db/checkpoints/2020-01-02/db_48_2.0216_2.5701.h5', by_name=True, skip_mismatch=True)
-    for image_path in glob.glob(osp.join('datasets/total_text/test_images', '*.jpg')):
+    #model.load_weights('/home/nduforet/Projects/DifferentiableBinarization/trained_model/db_48_2.0216_2.5701.h5', by_name=True, skip_mismatch=True)
+    model.load_weights('/home/nduforet/Projects/DifferentiableBinarization/checkpoints/2020-02-04/db_11_3.0659_3.1382.h5', by_name=True, skip_mismatch=True)
+    for image_path in glob.glob(osp.join('../CompareST/test_images/', '*')):
         image = cv2.imread(image_path)
         src_image = image.copy()
         h, w = image.shape[:2]
@@ -119,12 +120,17 @@ if __name__ == '__main__':
         image -= mean
         image_input = np.expand_dims(image, axis=0)
         p = model.predict(image_input)[0]
-        bitmap = p > 0.3
-        boxes, scores = polygons_from_bitmap(p, bitmap, w, h, box_thresh=0.5)
-        for box in boxes:
-            cv2.drawContours(src_image, [np.array(box)], -1, (0, 255, 0), 2)
-        cv2.namedWindow('image', cv2.WINDOW_NORMAL)
-        cv2.imshow('image', src_image)
-        cv2.waitKey(0)
-        image_fname = osp.split(image_path)[-1]
-        cv2.imwrite('test/' + image_fname, src_image)
+        print(p)
+        bitmap = p > 0.5
+        try:
+            boxes, scores = polygons_from_bitmap(p, bitmap, w, h, box_thresh=0.1)
+            for box in boxes:
+                print("found box")
+                cv2.drawContours(src_image, [np.array(box)], -1, (0, 255, 0), 2)
+            #cv2.namedWindow('image', cv2.WINDOW_NORMAL)
+            #cv2.imshow('image', src_image)
+            #cv2.waitKey(0)
+            image_fname = osp.split(image_path)[-1]
+            cv2.imwrite('test/' + image_fname, src_image)
+        except:
+            print('image failed')
