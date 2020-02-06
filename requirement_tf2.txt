@@ -1,0 +1,12 @@
+numpy==1.17
+tensorflow
+opencv-python
+six
+Pillow
+matplotlib
+scikit-image
+imageio
+Shapely
+imgaug
+pyclipper
+pydot
