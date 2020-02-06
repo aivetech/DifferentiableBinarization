@@ -15,12 +15,7 @@ def db_simpler(input_size=640, k=50):
     in3 = layers.Conv2D(256, (1, 1), padding='same', kernel_initializer='he_normal', name='in3')(C3)
     in4 = layers.Conv2D(256, (1, 1), padding='same', kernel_initializer='he_normal', name='in4')(C4)
     in5 = layers.Conv2D(256, (1, 1), padding='same', kernel_initializer='he_normal', name='in5')(C5)
-    print("IN shapes")
-    print(in2.shape)
-    print(in3.shape)
-    print(in4.shape)
-    print(in5.shape)
-
+    
     # 1 / 32 * 8 = 1 / 4
     P5 = layers.UpSampling2D(size=(8, 8))(
         layers.Conv2D(64, (3, 3), padding='same', kernel_initializer='he_normal')(in5))
@@ -37,11 +32,6 @@ def db_simpler(input_size=640, k=50):
         layers.Add()([in2, layers.UpSampling2D(size=(2, 2))(out3)]))
     # (b, /4, /4, 256)
 
-    print("P shapes")
-    print(P2.shape)
-    print(P3.shape)
-    print(P4.shape)
-    print(P5.shape)
     fuse = layers.Concatenate()([P2, P3, P4, P5])
 
     # probability map
@@ -55,14 +45,12 @@ def db_simpler(input_size=640, k=50):
                                activation='sigmoid')(p)
 
     training_model = models.Model(inputs=image_input,
-                                  outputs = p
-                                  )
+                                  outputs = p)
 
     prediction_model = models.Model(inputs=image_input, outputs=p)
-    print(training_model.summary())
     return training_model, prediction_model
 
 
 if __name__ == '__main__':
-    model, _ = my_resnet_labels()
+    model, _ = db_simpler()
     # model.summary()
