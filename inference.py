@@ -109,7 +109,7 @@ if __name__ == '__main__':
     mean = np.array([103.939, 116.779, 123.68])
 
     _, model = dbnet()
-    model.load_weights('/home/nduforet/Projects/Notebooks/DifferentiableBinarization/checkpoints/2020-01-29/db_01_19.9080_77.1976.h5', by_name=True, skip_mismatch=True)
+    model.load_weights('/home/nduforet/Projects/Notebooks/DifferentiableBinarization/checkpoints/2020-01-29/simpler_01_0.4214_0.7732.h5', by_name=True, skip_mismatch=True)
     for image_path in glob.glob(osp.join('datasets/total_text_subsample/test_images', '*.jpg')):
         image = cv2.imread(image_path)
         src_image = image.copy()
