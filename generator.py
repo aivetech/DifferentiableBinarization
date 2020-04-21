@@ -132,6 +132,98 @@ def generate(data_dir, batch_size=16, image_size=640, min_text_size=8, shrink_ra
             batch_masks = np.zeros([batch_size, image_size, image_size], dtype=np.float32)
             batch_thresh_maps = np.zeros([batch_size, image_size, image_size], dtype=np.float32)
             batch_thresh_masks = np.zeros([batch_size, image_size, image_size], dtype=np.float32)
+            batch_loss = np.zeros([batch_size, 1], dtype=np.float32)
+        i = indices[current_idx]
+        image_path = image_paths[i]
+        anns = all_anns[i]
+        image = cv2.imread(image_path)
+        # show_polys(image.copy(), anns, 'before_aug')
+        if is_training:
+            transform_aug = transform_aug.to_deterministic()
+            image, anns = transform(transform_aug, image, anns)
+            image, anns = crop(image, anns)
+        image, anns = resize(image_size, image, anns)
+        # show_polys(image.copy(), anns, 'after_aug')
+        # cv2.waitKey(0)
+        anns = [ann for ann in anns if Polygon(ann['poly']).is_valid]
+        gt = np.zeros((image_size, image_size), dtype=np.float32)
+        mask = np.ones((image_size, image_size), dtype=np.float32)
+        thresh_map = np.zeros((image_size, image_size), dtype=np.float32)
+        thresh_mask = np.zeros((image_size, image_size), dtype=np.float32)
+        for ann in anns:
+            poly = np.array(ann['poly'])
+            height = max(poly[:, 1]) - min(poly[:, 1])
+            width = max(poly[:, 0]) - min(poly[:, 0])
+            polygon = Polygon(poly)
+            # generate gt and mask
+            if polygon.area < 1 or min(height, width) < min_text_size or ann['text'] == '###':
+                cv2.fillPoly(mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
+                continue
+            else:
+                distance = polygon.area * (1 - np.power(shrink_ratio, 2)) / polygon.length
+                subject = [tuple(l) for l in ann['poly']]
+                padding = pyclipper.PyclipperOffset()
+                padding.AddPath(subject, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
+                shrinked = padding.Execute(-distance)
+                if len(shrinked) == 0:
+                    cv2.fillPoly(mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
+                    continue
+                else:
+                    shrinked = np.array(shrinked[0]).reshape(-1, 2)
+                    if shrinked.shape[0] > 2 and Polygon(shrinked).is_valid:
+                        cv2.fillPoly(gt, [shrinked.astype(np.int32)], 1)
+                    else:
+                        cv2.fillPoly(mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
+                        continue
+            # generate thresh map and thresh mask
+            draw_thresh_map(ann['poly'], thresh_map, thresh_mask, shrink_ratio=shrink_ratio)
+        thresh_map = thresh_map * (thresh_max - thresh_min) + thresh_min
+
+        image = image.astype(np.float32)
+        image[..., 0] -= mean[0]
+        image[..., 1] -= mean[1]
+        image[..., 2] -= mean[2]
+        batch_images[b] = image
+        batch_gts[b] = gt
+        batch_masks[b] = mask
+        batch_thresh_maps[b] = thresh_map
+        batch_thresh_masks[b] = thresh_mask
+        b += 1
+        current_idx += 1
+        if b == batch_size:
+            inputs = [batch_images, batch_gts, batch_masks, batch_thresh_maps, batch_thresh_masks]
+            outputs = batch_loss
+            yield inputs, outputs
+            b = 0
+
+
+def generate_resnet(data_dir, batch_size=16, image_size=640, min_text_size=8, shrink_ratio=0.4, thresh_min=0.3,
+             thresh_max=0.7, is_training=True):
+    split = 'train' if is_training else 'test'
+    with open(osp.join(data_dir, f'{split}_list.txt')) as f:
+        image_fnames = f.readlines()
+        image_paths = [osp.join(data_dir, f'{split}_images', image_fname.strip()) for image_fname in image_fnames]
+        gt_paths = [osp.join(data_dir, f'{split}_gts', image_fname.strip() + '.txt') for image_fname in image_fnames]
+        all_anns = load_all_anns(gt_paths)
+    transform_aug = iaa.Sequential([iaa.Fliplr(0.5), iaa.Affine(rotate=(-10, 10)), iaa.Resize((0.5, 3.0))])
+    dataset_size = len(image_paths)
+    indices = np.arange(dataset_size)
+    if is_training:
+        np.random.shuffle(indices)
+    current_idx = 0
+    b = 0
+    while True:
+        if current_idx >= dataset_size:
+            if is_training:
+                np.random.shuffle(indices)
+            current_idx = 0
+        if b == 0:
+            # Init batch arrays
+            batch_images = np.zeros([batch_size, image_size, image_size, 3], dtype=np.float32)
+            batch_gts = np.zeros([batch_size, image_size, image_size], dtype=np.float32)
+            batch_masks = np.zeros([batch_size, image_size, image_size], dtype=np.float32)
+            batch_thresh_maps = np.zeros([batch_size, image_size, image_size], dtype=np.float32)
+            batch_thresh_masks = np.zeros([batch_size, image_size, image_size], dtype=np.float32)
             batch_loss = np.zeros([batch_size, ], dtype=np.float32)
         i = indices[current_idx]
         image_path = image_paths[i]
@@ -192,7 +284,101 @@ def generate(data_dir, batch_size=16, image_size=640, min_text_size=8, shrink_ra
         b += 1
         current_idx += 1
         if b == batch_size:
-            inputs = [batch_images, batch_gts, batch_masks, batch_thresh_maps, batch_thresh_masks]
+            inputs = [batch_images]
             outputs = batch_loss
+            yield inputs, outputs
+            b = 0
+
+
+def generate_simpler_model(data_dir, batch_size=16, image_size=640, min_text_size=8, shrink_ratio=0.4, thresh_min=0.3,
+             thresh_max=0.7, is_training=True):
+    split = 'train' if is_training else 'test'
+    with open(osp.join(data_dir, f'{split}_list.txt')) as f:
+        image_fnames = f.readlines()
+        image_paths = [osp.join(data_dir, f'{split}_images', image_fname.strip()) for image_fname in image_fnames]
+        gt_paths = [osp.join(data_dir, f'{split}_gts', image_fname.strip() + '.txt') for image_fname in image_fnames]
+        all_anns = load_all_anns(gt_paths)
+    transform_aug = iaa.Sequential([iaa.Fliplr(0.5), iaa.Affine(rotate=(-10, 10)), iaa.Resize((0.5, 3.0))])
+    dataset_size = len(image_paths)
+    indices = np.arange(dataset_size)
+    if is_training:
+        np.random.shuffle(indices)
+    current_idx = 0
+    b = 0
+    while True:
+        if current_idx >= dataset_size:
+            if is_training:
+                np.random.shuffle(indices)
+            current_idx = 0
+        if b == 0:
+            # Init batch arrays
+            batch_images = np.zeros([batch_size, image_size, image_size, 3], dtype=np.float32)
+            batch_gts = np.zeros([batch_size, image_size, image_size], dtype=np.float32)
+            batch_masks = np.zeros([batch_size, image_size, image_size], dtype=np.float32)
+            batch_thresh_maps = np.zeros([batch_size, image_size, image_size], dtype=np.float32)
+            batch_thresh_masks = np.zeros([batch_size, image_size, image_size], dtype=np.float32)
+            batch_loss = np.zeros([batch_size, ], dtype=np.float32)
+        i = indices[current_idx]
+        image_path = image_paths[i]
+        anns = all_anns[i]
+        image = cv2.imread(image_path)
+        # show_polys(image.copy(), anns, 'before_aug')
+        if is_training:
+            transform_aug = transform_aug.to_deterministic()
+            image, anns = transform(transform_aug, image, anns)
+            image, anns = crop(image, anns)
+        image, anns = resize(image_size, image, anns)
+        # show_polys(image.copy(), anns, 'after_aug')
+        # cv2.waitKey(0)
+        anns = [ann for ann in anns if Polygon(ann['poly']).is_valid]
+        gt = np.zeros((image_size, image_size), dtype=np.float32)
+        mask = np.ones((image_size, image_size), dtype=np.float32)
+        thresh_map = np.zeros((image_size, image_size), dtype=np.float32)
+        thresh_mask = np.zeros((image_size, image_size), dtype=np.float32)
+        for ann in anns:
+            poly = np.array(ann['poly'])
+            height = max(poly[:, 1]) - min(poly[:, 1])
+            width = max(poly[:, 0]) - min(poly[:, 0])
+            polygon = Polygon(poly)
+            # generate gt and mask
+            if polygon.area < 1 or min(height, width) < min_text_size or ann['text'] == '###':
+                cv2.fillPoly(mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
+                continue
+            else:
+                distance = polygon.area * (1 - np.power(shrink_ratio, 2)) / polygon.length
+                subject = [tuple(l) for l in ann['poly']]
+                padding = pyclipper.PyclipperOffset()
+                padding.AddPath(subject, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
+                shrinked = padding.Execute(-distance)
+                if len(shrinked) == 0:
+                    cv2.fillPoly(mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
+                    continue
+                else:
+                    shrinked = np.array(shrinked[0]).reshape(-1, 2)
+                    if shrinked.shape[0] > 2 and Polygon(shrinked).is_valid:
+                        cv2.fillPoly(gt, [shrinked.astype(np.int32)], 1)
+                    else:
+                        cv2.fillPoly(mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
+                        continue
+            # generate thresh map and thresh mask
+            draw_thresh_map(ann['poly'], thresh_map, thresh_mask, shrink_ratio=shrink_ratio)
+        thresh_map = thresh_map * (thresh_max - thresh_min) + thresh_min
+
+        image = image.astype(np.float32)
+        image[..., 0] -= mean[0]
+        image[..., 1] -= mean[1]
+        image[..., 2] -= mean[2]
+        batch_images[b] = image
+        batch_gts[b] = gt
+        batch_masks[b] = mask
+        batch_thresh_maps[b] = thresh_map
+        batch_thresh_masks[b] = thresh_mask
+        batch_loss[b] = b %2
+        b += 1
+        current_idx += 1
+        if b == batch_size:
+            #inputs = [batch_images, batch_gts, batch_masks, batch_thresh_maps, batch_thresh_masks]
+            inputs = batch_images
+            outputs = batch_gts
             yield inputs, outputs
             b = 0

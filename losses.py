@@ -1,5 +1,5 @@
-import tensorflow as tf
-import keras.backend as K
+import tensorflow.compat.v1 as tf
+import tensorflow.keras.backend as K
 
 
 def balanced_crossentropy_loss(args, negative_ratio=3., scale=5.):
@@ -56,3 +56,11 @@ def db_loss(args):
     balanced_ce_loss_, dice_loss_weights = balanced_crossentropy_loss([binary, gt, mask])
     dice_loss_ = dice_loss([thresh_binary, gt, mask, dice_loss_weights])
     return l1_loss_ + balanced_ce_loss_ + dice_loss_
+
+def simpler_loss(y_pred, y_true):
+    #[p, gt, mask] = y_pred
+    gt = y_true
+    p = y_pred
+    #balanced_ce_loss_, _ = balanced_crossentropy_loss([p, gt, mask])
+    loss = K.binary_crossentropy(gt, p)
+    return loss

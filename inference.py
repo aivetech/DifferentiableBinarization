@@ -109,9 +109,8 @@ if __name__ == '__main__':
     mean = np.array([103.939, 116.779, 123.68])
 
     _, model = dbnet()
-    #model.load_weights('/home/nduforet/Projects/DifferentiableBinarization/trained_model/db_48_2.0216_2.5701.h5', by_name=True, skip_mismatch=True)
-    model.load_weights('/home/nduforet/Projects/DifferentiableBinarization/checkpoints/2020-02-04/db_11_3.0659_3.1382.h5', by_name=True, skip_mismatch=True)
-    for image_path in glob.glob(osp.join('../CompareST/test_images/', '*')):
+    model.load_weights('/home/nduforet/Projects/Notebooks/DifferentiableBinarization/checkpoints/2020-01-29/simpler_01_0.4214_0.7732.h5', by_name=True, skip_mismatch=True)
+    for image_path in glob.glob(osp.join('datasets/total_text_subsample/test_images', '*.jpg')):
         image = cv2.imread(image_path)
         src_image = image.copy()
         h, w = image.shape[:2]
